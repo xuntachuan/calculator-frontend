@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>前后端分离计算器</title>
+    <style>
+        *{box-sizing:border-box;font-family:system-ui}
+        .container{max-width:900px;margin:30px auto;display:flex;gap:30px;padding:0 20px}
+        .calc{width:340px}
+        .history{flex:1}
+        #input-exp{width:100%;height:60px;font-size:24px;padding:10px;text-align:right;margin-bottom:10px}
+        #result{width:100%;height:40px;font-size:20px;text-align:right;padding:8px;border:1px solid #ccc;margin-bottom:10px;color:#333}
+        .btn-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+        button{height:50px;font-size:18px;cursor:pointer}
+        .history-item{display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #eee}
+        .del-btn{color:red;border:none;background:none;cursor:pointer}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="calc">
+            <h3>计算器</h3>
+            <input id="input-exp" placeholder="输入表达式">
+            <div id="result">结果</div>
+            <div class="btn-grid">
+                <button onclick="appendChar('(')">(</button>
+                <button onclick="appendChar(')')">)</button>
+                <button onclick="clearAll()">C</button>
+                <button onclick="appendChar('/')">/</button>
+
+                <button onclick="appendChar('7')">7</button>
+                <button onclick="appendChar('8')">8</button>
+                <button onclick="appendChar('9')">9</button>
+                <button onclick="appendChar('*')">*</button>
+
+                <button onclick="appendChar('4')">4</button>
+                <button onclick="appendChar('5')">5</button>
+                <button onclick="appendChar('6')">6</button>
+                <button onclick="appendChar('-')">-</button>
+
+                <button onclick="appendChar('1')">1</button>
+                <button onclick="appendChar('2')">2</button>
+                <button onclick="appendChar('3')">3</button>
+                <button onclick="appendChar('+')">+</button>
+
+                <button onclick="appendChar('0')">0</button>
+                <button onclick="appendChar('.')">.</button>
+                <button onclick="calcEqual()" style="background:#4285f4;color:white">=</button>
+            </div>
+        </div>
+        <div class="history">
+            <h3>计算历史</h3>
+            <div id="history-list"></div>
+        </div>
+    </div>
+
+    <script>
+        // ========= 修改这里！后端地址 =========
+        const BACKEND_URL = "http://127.0.0.1:5000";
+        const expInput = document.getElementById("input-exp");
+        const resultDiv = document.getElementById("result");
+        const historyWrap = document.getElementById("history-list");
+
+        // 页面加载自动读取历史
+        window.onload = ()=>{
+            loadHistory();
+        }
+
+        function appendChar(c){
+            expInput.value += c;
+        }
+        function clearAll(){
+            expInput.value = "";
+            resultDiv.innerText = "结果";
+        }
+
+        // 点击等于，请求后端计算
+        async function calcEqual(){
+            const expr = expInput.value.trim();
+            if(!expr){
+                resultDiv.innerText="请输入表达式";
+                return;
+            }
+            try{
+                const resp = await fetch(`${BACKEND_URL}/api/calc`,{
+                    method:"POST",
+                    headers:{"Content-Type":"application/json"},
+                    body:JSON.stringify({expression:expr})
+                })
+                const json = await resp.json();
+                if(json.code ===200){
+                    resultDiv.innerText = json.data.result;
+                    loadHistory(); // 计算成功刷新历史
+                }else{
+                    resultDiv.innerText = json.msg;
+                }
+            }catch(err){
+                resultDiv.innerText="网络请求失败，请检查后端";
+                console.error(err);
+            }
+        }
+
+        // 获取历史列表
+        async function loadHistory(){
+            try{
+                const resp = await fetch(`${BACKEND_URL}/api/history`);
+                const json = await resp.json();
+                if(json.code===200){
+                    renderHistory(json.data);
+                }
+            }catch(e){
+                historyWrap.innerHTML = "<p>加载历史失败</p>";
+            }
+        }
+
+        // 删除单条记录
+        async function delRecord(id){
+            if(!confirm("确定删除这条记录？"))return;
+            try{
+                await fetch(`${BACKEND_URL}/api/history/${id}`,{method:"DELETE"});
+                loadHistory();
+            }catch(e){
+                alert("删除失败");
+            }
+        }
+
+        function renderHistory(list){
+            if(list.length ===0){
+                historyWrap.innerHTML = "<p>暂无记录</p>";
+                return;
+            }
+            let html = "";
+            list.forEach(item=>{
+                html += `
+                <div class="history-item">
+                    <div>${item.expression} = ${item.result}<br><small>${item.create_time}</small></div>
+                    <button class="del-btn" onclick="delRecord(${item.id})">删除</button>
+                </div>
+                `
+            })
+            historyWrap.innerHTML = html;
+        }
+    </script>
+</body>
+</html>
